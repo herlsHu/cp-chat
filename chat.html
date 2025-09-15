@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>角色情境对话 - CP 展会版</title>
+    <meta name="description" content="与桃桃子和佩可喵进行有趣的对话体验">
+    <script src="api.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Comic Sans MS', cursive;
+            background: linear-gradient(135deg, #ffb6c1 0%, #dda0dd 100%);
+            min-height: 100vh; overflow-x: hidden;
+        }
+        .chat-container { display: flex; flex-direction: column; height: 100vh; max-width: 800px; margin: 0 auto; background: white; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+        .chat-header {
+            background: linear-gradient(135deg, #ffb6c1 0%, #dda0dd 100%);
+            color: white; padding: 1rem; display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .character-info { display: flex; align-items: center; gap: 0.75rem; }
+        .character-avatar { width: 3rem; height: 3rem; border-radius: 50%; object-fit: cover; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .character-emoji { font-size: 2rem; width: 3rem; height: 3rem; display: flex; align-items: center; justify-content: center; background: white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .character-details h2 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+        .character-details p { font-size: 0.875rem; opacity: 0.9; }
+        .round-counter { background: rgba(255,255,255,0.2); padding: 0.5rem 1rem; border-radius: 9999px; font-size: 0.875rem; font-weight: bold; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 1rem; }
+        .message { max-width: 80%; padding: 0.75rem 1rem; border-radius: 1rem; word-wrap: break-word; animation: messageSlide 0.3s ease-out; }
+        @keyframes messageSlide { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .message.user { background: #ffb6c1; color: white; align-self: flex-end; border-bottom-right-radius: 0.25rem; }
+        .message.bot { background: #f3f4f6; color: #374151; align-self: flex-start; border-bottom-left-radius: 0.25rem; }
+        .message-image { max-width: 200px; border-radius: 0.5rem; margin-top: 0.5rem; }
+        .chat-input-container { padding: 1rem; background: white; border-top: 1px solid #e5e7eb; display: flex; gap: 0.5rem; align-items: flex-end; }
+        .quick-buttons { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+        .quick-btn { background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.75rem; cursor: pointer; transition: all 0.2s ease; }
+        .quick-btn:hover { background: #e5e7eb; }
+        .input-group { display: flex; gap: 0.5rem; width: 100%; }
+        .chat-input { flex: 1; border: 2px solid #d1d5db; border-radius: 9999px; padding: 0.75rem 1rem; font-size: 0.875rem; outline: none; transition: border-color 0.2s ease; }
+        .chat-input:focus { border-color: #ffb6c1; }
+        .send-btn, .image-btn { background: #ffb6c1; color: white; border: none; border-radius: 50%; width: 2.5rem; height: 2.5rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; font-size: 1rem; }
+        .send-btn:hover, .image-btn:hover { background: #f472b6; transform: scale(1.05); }
+        .send-btn:disabled, .image-btn:disabled { background: #d1d5db; cursor: not-allowed; transform: none; }
+        .loading { display: none; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.875rem; }
+        .loading.show { display: flex; }
+        .spinner { width: 1rem; height: 1rem; border: 2px solid #f3f3f3; border-top: 2px solid #ffb6c1; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.show { display: flex; }
+        .modal-content { background: white; border-radius: 1rem; padding: 2rem; max-width: 400px; width: 90%; text-align: center; animation: modalSlide 0.3s ease-out; }
+        @keyframes modalSlide { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        .modal h3 { color: #dda0dd; margin-bottom: 1rem; font-size: 1.5rem; }
+        .modal p { color: #6b7280; margin-bottom: 1.5rem; line-height: 1.5; }
+        .modal-buttons { display: flex; gap: 1rem; justify-content: center; }
+        .modal-btn { padding: 0.75rem 1.5rem; border: none; border-radius: 9999px; cursor: pointer; font-weight: bold; transition: all 0.2s ease; }
+        .modal-btn.primary { background: #ffb6c1; color: white; }
+        .modal-btn.secondary { background: #f3f4f6; color: #6b7280; }
+        .modal-btn:hover { transform: scale(1.05); }
+        .back-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.5rem; border-radius: 50%; cursor: pointer; transition: all 0.2s ease; }
+        .back-btn:hover { background: rgba(255,255,255,0.3); }
+        @media (max-width: 768px) {
+            .chat-container { height: 100vh; border-radius: 0; }
+            .message { max-width: 90%; }
+            .quick-buttons { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <button class="back-btn" onclick="goBack()" title="返回角色选择">←</button>
+            <div class="character-info">
+                <img id="characterAvatar" class="character-avatar" src="" alt="" style="display: none;">
+                <div id="characterEmoji" class="character-emoji" style="display: none;"></div>
+                <div class="character-details">
+                    <h2 id="characterName">选择角色</h2>
+                    <p id="characterDesc">开始对话</p>
+                </div>
+            </div>
+            <div class="round-counter">
+                <span id="roundCounter">0/8</span>
+            </div>
+        </div>
+        
+        <div class="chat-messages" id="chatMessages">
+            <div class="message bot" id="welcomeMessage">
+                <div id="welcomeText">欢迎！请选择角色开始对话～</div>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <div class="quick-buttons">
+                <button class="quick-btn" onclick="sendQuickMessage('问打卡点')">问打卡点</button>
+                <button class="quick-btn" onclick="sendQuickMessage('今天拿无料了吗')">今天拿无料了吗</button>
+            </div>
+            <div class="input-group">
+                <input type="text" class="chat-input" id="messageInput" placeholder="输入消息..." maxlength="20" onkeypress="handleKeyPress(event)">
+                <button class="image-btn" onclick="openImageUpload()" id="imageBtn" title="📷 让我看看你">📷</button>
+                <button class="send-btn" onclick="sendMessage()" id="sendBtn">→</button>
+            </div>
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <span>AI正在思考...</span>
+            </div>
+        </div>
+    </div>
+    
+    <input type="file" id="imageUpload" accept="image/*" capture="environment" style="display: none;" onchange="handleImageUpload(event)">
+    
+    <div class="modal" id="freebieModal">
+        <div class="modal-content">
+            <h3 id="freebieTitle">今日无料提示</h3>
+            <p id="freebieDescription">你得到：打卡棒！</p>
+            <p id="freebieNote" style="font-size: 0.875rem; color: #9ca3af;">以现场发放为准，先到先得</p>
+            <div class="modal-buttons">
+                <button class="modal-btn primary" onclick="closeFreebieModal()">我知道啦</button>
+                <button class="modal-btn secondary" onclick="restartChat()">重来一次</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentCharacter = null;
+        let roundCount = 0;
+        let imageRoundsUsed = 0;
+        let isEnded = false;
+        let isLoading = false;
+        
+        const characters = {
+            momoko: {
+                name: '桃桃子 (Momoko)',
+                desc: '觉醒的虚拟角色，技术宅萌系少女',
+                avatar: 'avatars/momoko.jpg',
+                emoji: '🌸',
+                welcomeMessage: '你好呀～我是桃桃子！今天也要在现实世界中探索新事物呢～有什么想了解的吗？',
+                farewellMessage: '先聊到这儿啦～祝你今天收获满满！'
+            },
+            peke: {
+                name: '佩可喵',
+                desc: '桃桃子制造的智能宠物小猫',
+                avatar: '',
+                emoji: '🐱',
+                welcomeMessage: '喵～我是佩可喵！跟着主人桃桃子一起来探索现实世界喵～有什么好玩的吗？',
+                farewellMessage: '我要去巡摊啦，留点想念喵～'
+            }
+        };
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const character = urlParams.get('character');
+            
+            if (character && characters[character]) {
+                selectCharacter(character);
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
+        
+        function selectCharacter(characterId) {
+            currentCharacter = characters[characterId];
+            document.getElementById('characterName').textContent = currentCharacter.name;
+            document.getElementById('characterDesc').textContent = currentCharacter.desc;
+            
+            if (currentCharacter.avatar) {
+                const avatarImg = document.getElementById('characterAvatar');
+                avatarImg.src = currentCharacter.avatar;
+                avatarImg.alt = currentCharacter.name;
+                avatarImg.style.display = 'block';
+                avatarImg.onerror = function() {
+                    this.style.display = 'none';
+                    document.getElementById('characterEmoji').style.display = 'flex';
+                };
+            } else {
+                document.getElementById('characterEmoji').textContent = currentCharacter.emoji;
+                document.getElementById('characterEmoji').style.display = 'flex';
+            }
+            
+            const welcomeMessage = document.getElementById('welcomeMessage');
+            welcomeMessage.innerHTML = `<div>${currentCharacter.welcomeMessage}</div>`;
+            
+            roundCount = 0;
+            imageRoundsUsed = 0;
+            isEnded = false;
+            updateRoundCounter();
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message || isLoading || isEnded) return;
+            
+            addMessage(message, 'user');
+            input.value = '';
+            simulateAIResponse(message);
+        }
+        
+        function sendQuickMessage(message) {
+            if (isLoading || isEnded) return;
+            addMessage(message, 'user');
+            simulateAIResponse(message);
+        }
+        
+        function addMessage(content, type) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.innerHTML = `<div>${content}</div>`;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            if (type === 'user') {
+                roundCount++;
+                updateRoundCounter();
+                
+                if (roundCount >= 8) {
+                    setTimeout(() => {
+                        endConversation();
+                    }, 1000);
+                }
+            }
+        }
+        
+        async function simulateAIResponse(userMessage) {
+            if (isLoading) return;
+            
+            isLoading = true;
+            showLoading(true);
+            
+            try {
+                const conversationHistory = getConversationHistory();
+                const response = await window.apiClient.generateCharacterResponse(
+                    currentCharacter.name.includes('桃桃子') ? 'momoko' : 'peke',
+                    userMessage,
+                    conversationHistory
+                );
+                addMessage(response, 'bot');
+            } catch (error) {
+                console.error('API调用失败:', error);
+                const response = generateAIResponse(userMessage);
+                addMessage(response, 'bot');
+            } finally {
+                showLoading(false);
+                isLoading = false;
+            }
+        }
+        
+        function generateAIResponse(userMessage) {
+            const responses = {
+                '问打卡点': '可以去问问工作人员或者看看场刊喵～',
+                '今天拿无料了吗': '早点去逛更稳哦～',
+                '无料': '早点去逛更稳哦～',
+                '打卡': '记得拍照留念哦～',
+                '拍照': '📷 让我看看你！',
+                '结束': '好的，那我们下次再聊～'
+            };
+            
+            for (const [key, response] of Object.entries(responses)) {
+                if (userMessage.includes(key)) {
+                    return currentCharacter.name.includes('桃桃子') ? response : response.replace('喵', '喵～');
+                }
+            }
+            
+            const defaultResponses = [
+                '听起来很有趣呢～',
+                '真的吗？告诉我更多吧！',
+                '哇，好厉害！',
+                '我也想知道呢～',
+                '太棒了！',
+                '继续继续～'
+            ];
+            
+            return currentCharacter.name.includes('桃桃子') 
+                ? defaultResponses[Math.floor(Math.random() * defaultResponses.length)]
+                : defaultResponses[Math.floor(Math.random() * defaultResponses.length)] + '喵～';
+        }
+        
+        function openImageUpload() {
+            if (isLoading || isEnded) return;
+            
+            if (imageRoundsUsed >= 3) {
+                alert('图片功能已达上限，下次再看你～');
+                return;
+            }
+            
+            document.getElementById('imageUpload').click();
+        }
+        
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            addMessage('📷 让我看看你', 'user');
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const messagesContainer = document.getElementById('chatMessages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message user';
+                messageDiv.innerHTML = `
+                    <div>📷 让我看看你</div>
+                    <img src="${e.target.result}" class="message-image" alt="用户上传的图片">
+                `;
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            };
+            reader.readAsDataURL(file);
+            
+            simulateImageDescription();
+            imageRoundsUsed++;
+        }
+        
+        function simulateImageDescription() {
+            if (isLoading) return;
+            
+            isLoading = true;
+            showLoading(true);
+            
+            setTimeout(() => {
+                const descriptions = [
+                    '白色在灯光里很软，像奶泡一样～',
+                    '粉色把你包住啦，甜甜的气息在发光～',
+                    '看起来好有趣呢！',
+                    '这个角度拍得真不错～',
+                    '哇，好漂亮！',
+                    '太可爱了～'
+                ];
+                
+                const response = currentCharacter.name.includes('桃桃子') 
+                    ? descriptions[Math.floor(Math.random() * descriptions.length)]
+                    : descriptions[Math.floor(Math.random() * descriptions.length)] + '喵～';
+                
+                addMessage(response, 'bot');
+                showLoading(false);
+                isLoading = false;
+            }, 1500);
+        }
+        
+        function endConversation() {
+            if (isEnded) return;
+            
+            isEnded = true;
+            addMessage(currentCharacter.farewellMessage, 'bot');
+            
+            setTimeout(() => {
+                showFreebieModal();
+            }, 1000);
+        }
+        
+        function showFreebieModal() {
+            const freebies = [
+                { type: '打卡棒', title: '今日无料提示', description: '你得到：打卡棒！' },
+                { type: '袋子', title: '今日无料提示', description: '你得到：袋子！' }
+            ];
+            
+            const freebie = freebies[Math.floor(Math.random() * freebies.length)];
+            
+            document.getElementById('freebieTitle').textContent = freebie.title;
+            document.getElementById('freebieDescription').textContent = freebie.description;
+            document.getElementById('freebieModal').classList.add('show');
+        }
+        
+        function closeFreebieModal() {
+            document.getElementById('freebieModal').classList.remove('show');
+        }
+        
+        function restartChat() {
+            closeFreebieModal();
+            window.location.href = 'index.html';
+        }
+        
+        function goBack() {
+            if (confirm('确定要返回角色选择吗？当前对话将丢失。')) {
+                window.location.href = 'index.html';
+            }
+        }
+        
+        function updateRoundCounter() {
+            document.getElementById('roundCounter').textContent = `${roundCount}/8`;
+        }
+        
+        function showLoading(show) {
+            const loading = document.getElementById('loading');
+            const sendBtn = document.getElementById('sendBtn');
+            const imageBtn = document.getElementById('imageBtn');
+            
+            if (show) {
+                loading.classList.add('show');
+                sendBtn.disabled = true;
+                imageBtn.disabled = true;
+            } else {
+                loading.classList.remove('show');
+                sendBtn.disabled = false;
+                imageBtn.disabled = false;
+            }
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        function getConversationHistory() {
+            const messages = document.querySelectorAll('.message');
+            const history = [];
+            
+            messages.forEach(message => {
+                const content = message.querySelector('div').textContent.trim();
+                const isUser = message.classList.contains('user');
+                
+                if (content && !content.includes('📷 让我看看你')) {
+                    history.push({
+                        role: isUser ? 'user' : 'assistant',
+                        content: content
+                    });
+                }
+            });
+            
+            return history;
+        }
+    </script>
+</body>
+</html>
